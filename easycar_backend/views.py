@@ -3,7 +3,7 @@ from rest_framework import generics, status
 from django.contrib.auth.models import User
 from django.contrib.auth import login, logout, authenticate
 from django.http import JsonResponse, Http404
-from django.views.decorators.csrf import csrf_exempt, csrf_protect
+from django.views.decorators.csrf import csrf_exempt, csrf_protect, ensure_csrf_cookie
 from django.contrib.auth.hashers import make_password
 import json
 from rest_framework.decorators import api_view, parser_classes, permission_classes

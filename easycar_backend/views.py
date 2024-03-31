@@ -1,4 +1,7 @@
 from django.db import IntegrityError
+from django.middleware.csrf import get_token
+from django.utils.dateparse import parse_datetime
+from django.views.decorators.http import require_http_methods, require_GET
 from django_filters.rest_framework import DjangoFilterBackend
 from jupyter_client.jsonutil import parse_date
 from rest_framework import generics, status
@@ -20,6 +23,13 @@ from .models import Car, Booking
 from .serializers import CarSerializer
 # from .serializers import PaymentSerializer
 from rest_framework.response import Response
+
+
+@require_GET
+def csrf(request):
+    token_to_print = get_token(request)
+    print("CSRF Token accessed: " + str(token_to_print))
+    return JsonResponse({'csrfToken': token_to_print})
 
 
 def validate_new_password(password):
@@ -72,6 +82,7 @@ def get_user_info(request):
     }
     return Response(user_data)
 
+
 # class PaymentView(APIView):
 #     def post(self, request, *args, **kwargs):
 #         serializer = PaymentSerializer(data=request.data)
@@ -87,25 +98,27 @@ class CarListCreateView(generics.ListCreateAPIView):
     serializer_class = CarSerializer
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def create_booking(request):
+    print(f"CSRF Cookie from the request: {request.META.get('CSRF_COOKIE')}")
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
             user = request.user
             print(user)
             car_id = data['car_id']
-            start_date = parse_date(data['start_date'])
-            end_date = parse_date(data['end_date'])
+            start_datetime = parse_datetime(data['start_datetime'])
+            end_datetime = parse_datetime(data['end_datetime'])
             booking_location = data.get('booking_location', '')  # Optional, based on your model
 
             booking = Booking.objects.create(
                 user=user,
                 car_id=car_id,
-                start_date=start_date,
-                end_date=end_date,
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
                 booking_location=booking_location,
             )
-
             return JsonResponse({"success": True, "booking_id": booking.id}, status=201)
         except Exception as e:
             return JsonResponse({"success": False, "error": str(e)}, status=400)

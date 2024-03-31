@@ -1,13 +1,16 @@
+from django.db import IntegrityError
+from django_filters.rest_framework import DjangoFilterBackend
 from jupyter_client.jsonutil import parse_date
 from rest_framework import generics, status
 from django.contrib.auth.models import User
-from django.contrib.auth import login, logout, authenticate
+from django.contrib.auth import login, logout, authenticate, update_session_auth_hash
 from django.http import JsonResponse, Http404
 from django.views.decorators.csrf import csrf_exempt, csrf_protect, ensure_csrf_cookie
 from django.contrib.auth.hashers import make_password
 import json
 from rest_framework.decorators import api_view, parser_classes, permission_classes
 from rest_framework.exceptions import NotFound
+from rest_framework.filters import OrderingFilter
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -18,6 +21,56 @@ from .serializers import CarSerializer
 # from .serializers import PaymentSerializer
 from rest_framework.response import Response
 
+
+def validate_new_password(password):
+    # Check if password is at least 8 characters long
+    if len(password) < 8:
+        return False
+    # Add more password validation rules as needed
+    return True
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    user = request.user
+    try:
+        old_password = request.data.get('oldPassword')
+        new_password = request.data.get('newPassword')
+
+        if not old_password or not new_password:
+            return Response({'error': 'Old password and new password are required.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if not user.check_password(old_password):
+            return Response({'error': 'Wrong old password.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not validate_new_password(new_password):
+            return Response({'error': 'New password does not meet requirements.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save()
+        update_session_auth_hash(request, user)
+        return Response({'success': 'Password updated successfully.'})
+    except Exception as e:
+        # Log the exception message
+        print(f'Error changing password: {str(e)}')
+        return Response({'error': 'Error changing password.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_info(request):
+    user = request.user
+    user_data = {
+        'id': user.id,
+        'username': user.username,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'email': user.email,
+        # Add any other fields you need
+    }
+    return Response(user_data)
 
 # class PaymentView(APIView):
 #     def post(self, request, *args, **kwargs):
@@ -65,6 +118,14 @@ def create_booking(request):
 @permission_classes([IsAuthenticated])  # Ensure that the user is authenticated
 def car_create_view(request, format=None):
     print("Car create view entered")
+    license_plate = request.data.get('license_plate')
+    vin = request.data.get('vin')
+
+    # Check for existing cars with the same license plate or VIN
+    if Car.objects.filter(license_plate=license_plate).exists():
+        return JsonResponse({'license_plate': 'A car with this license plate already exists.'}, status=400)
+    if Car.objects.filter(vin=vin).exists():
+        return JsonResponse({'vin': 'A car with this VIN number already exists.'}, status=400)
     serializer = CarSerializer(data=request.data)
     if serializer.is_valid():
         serializer.save(owner=request.user)
@@ -98,15 +159,21 @@ def register(request):
             return JsonResponse({'error': 'All fields are required.'}, status=400)
 
         # Use create_user instead of create to handle password hashing
-        user = User.objects.create_user(
-            username=data['username'],
-            first_name=data['first_name'],
-            last_name=data['last_name'],
-            email=data['email'],
-            password=data['password']
-        )
-        login(request, user)  # Log the user in
-        return JsonResponse({'id': user.id, 'username': user.username}, status=201)
+        try:
+            user = User.objects.create_user(
+                username=data['username'],
+                first_name=data['first_name'],
+                last_name=data['last_name'],
+                email=data['email'],
+                password=data['password']
+            )
+            login(request, user)  # Log the user in
+            return JsonResponse({'id': user.id, 'username': user.username}, status=201)
+        except IntegrityError as e:
+            if 'auth_user_username_key' in str(e):
+                return JsonResponse({'email': 'User with this email already exists.'}, status=400)
+            else:
+                return JsonResponse({'error': 'An error occurred during registration.'}, status=500)
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 

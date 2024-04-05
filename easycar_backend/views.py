@@ -7,7 +7,7 @@ from jupyter_client.jsonutil import parse_date
 from rest_framework import generics, status
 from django.contrib.auth.models import User
 from django.contrib.auth import login, logout, authenticate, update_session_auth_hash
-from django.http import JsonResponse, Http404
+from django.http import HttpResponseBadRequest, JsonResponse, Http404
 from django.views.decorators.csrf import csrf_exempt, csrf_protect, ensure_csrf_cookie
 from django.contrib.auth.hashers import make_password
 import json

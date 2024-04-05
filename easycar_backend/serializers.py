@@ -2,14 +2,20 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from .models import Car
 
+from .models import Booking
 
-# User = get_user_model()
-# class PaymentSerializer(serializers.Serializer):
-#     cardNumber = serializers.CharField(max_length=16)
-#     expiryDate = serializers.CharField(max_length=5)
-#     cvv = serializers.CharField(max_length=3)
-#     nameOnCard = serializers.CharField(max_length=100)
-#     consent = serializers.BooleanField()
+class BookingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Booking
+        fields = '__all__'  # List all the fields you want to include in your serialized data
+
+User = get_user_model()
+class PaymentSerializer(serializers.Serializer):
+    cardNumber = serializers.CharField(max_length=16)
+    expiryDate = serializers.CharField(max_length=5)
+    cvv = serializers.CharField(max_length=3)
+    nameOnCard = serializers.CharField(max_length=100)
+    consent = serializers.BooleanField()
 
 class CarSerializer(serializers.ModelSerializer):
     class Meta:

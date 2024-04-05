@@ -20,12 +20,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.views import APIView
 from .models import Car, Booking
-from .serializers import CarSerializer
-# from .serializers import PaymentSerializer
+from .serializers import CarSerializer, BookingSerializer
+from .serializers import PaymentSerializer
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
 from .filters import CarFilter
+from django.views import View
+from django.views.generic import ListView
+from django.contrib.auth.mixins import LoginRequiredMixin
 
 @require_GET
 def csrf(request):
@@ -85,14 +88,14 @@ def get_user_info(request):
     return Response(user_data)
 
 
-# class PaymentView(APIView):
-#     def post(self, request, *args, **kwargs):
-#         serializer = PaymentSerializer(data=request.data)
-#         if serializer.is_valid():
-#             # Process the payment here
-#             # For now, we'll just return the validated data
-#             return Response(serializer.validated_data, status=200)
-#         return Response(serializer.errors, status=400)
+class PaymentView(APIView):
+    def post(self, request, *args, **kwargs):
+        serializer = PaymentSerializer(data=request.data)
+        if serializer.is_valid():
+            # Process the payment here
+            # For now, we'll just return the validated data
+            return Response(serializer.validated_data, status=200)
+        return Response(serializer.errors, status=400)
 
 
 class CarListCreateView(generics.ListCreateAPIView):
@@ -171,6 +174,41 @@ class CarDetailsView(generics.RetrieveUpdateDestroyAPIView):
             return Response(serializer.data)
         except Car.DoesNotExist:
             raise NotFound('A car with this ID does not exist.')
+class BookingListView(ListView):
+    model = Booking
+    # def get(self, request, *args, **kwargs):
+    #     print("User authenticated:", request.user.is_authenticated)
+    #     if request.user.is_authenticated:
+    #         print("Authenticated user:", request.user)
+    #     else:
+    #         print("User not authenticated, redirecting to login.")
+    #     return super().get(request, *args, **kwargs)
+    @permission_classes([IsAuthenticated]) 
+    def get_queryset(self):
+        if self.request.user.is_authenticated:
+            print("User in get_queryset:", self.request.user.username, self.request.user.email)
+            queryset = Booking.objects.filter(user=self.request.user)
+            print("Booking QuerySet:", queryset)
+            return queryset
+        else:
+            print("Anonymous user accessed the bookings.")
+            # Handle the anonymous user case, possibly by returning an empty queryset
+            return Booking.objects.none()
+
+    @permission_classes([IsAuthenticated]) 
+    def render_to_response(self, context, **response_kwargs):
+        queryset = self.get_queryset()
+        serializer = BookingSerializer(queryset, many=True)
+        print("Serialized data:", serializer.data)  # Check the serialized data
+        return JsonResponse(serializer.data, safe=False)
+
+    @api_view(['POST'])
+    @permission_classes([IsAuthenticated])
+    def create_booking(request):
+        user = request.user
+        print("User making the booking request:", user.username, user.email)
+        # ... rest of your code ...
+
 
 
 @csrf_exempt

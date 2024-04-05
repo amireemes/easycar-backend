@@ -23,7 +23,9 @@ from .models import Car, Booking
 from .serializers import CarSerializer
 # from .serializers import PaymentSerializer
 from rest_framework.response import Response
-
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import OrderingFilter
+from .filters import CarFilter
 
 @require_GET
 def csrf(request):
@@ -96,6 +98,14 @@ def get_user_info(request):
 class CarListCreateView(generics.ListCreateAPIView):
     queryset = Car.objects.all()
     serializer_class = CarSerializer
+    filter_backends = (DjangoFilterBackend, OrderingFilter,)
+    filterset_class = CarFilter
+    ordering_fields = ['price_per_day', 'year']  # Allow ordering by price and year
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # print(queryset.query)  # This will print the SQL query to the console
+        return queryset
 
 
 @api_view(['POST'])

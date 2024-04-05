@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'easycar_backend',
     'rest_framework_simplejwt.token_blacklist',
+    'django_filters',
 ]
 
 MIDDLEWARE = [

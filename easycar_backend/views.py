@@ -19,6 +19,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.views import APIView
+from django.views import View
+from django.views.generic import ListView
 from .models import Car, Booking
 from .serializers import CarSerializer, BookingSerializer
 from .serializers import PaymentSerializer
@@ -26,8 +28,6 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
 from .filters import CarFilter
-from django.views import View
-from django.views.generic import ListView
 from django.contrib.auth.mixins import LoginRequiredMixin
 
 @require_GET

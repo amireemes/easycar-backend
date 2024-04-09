@@ -30,11 +30,14 @@ from rest_framework.filters import OrderingFilter
 from .filters import CarFilter
 from django.contrib.auth.mixins import LoginRequiredMixin
 
+
 @require_GET
 def csrf(request):
     token_to_print = get_token(request)
     print("CSRF Token accessed: " + str(token_to_print))
     return JsonResponse({'csrfToken': token_to_print})
+
+    # test commit
 
 
 def validate_new_password(password):
@@ -174,8 +177,11 @@ class CarDetailsView(generics.RetrieveUpdateDestroyAPIView):
             return Response(serializer.data)
         except Car.DoesNotExist:
             raise NotFound('A car with this ID does not exist.')
+
+
 class BookingListView(ListView):
     model = Booking
+
     # def get(self, request, *args, **kwargs):
     #     print("User authenticated:", request.user.is_authenticated)
     #     if request.user.is_authenticated:
@@ -183,7 +189,7 @@ class BookingListView(ListView):
     #     else:
     #         print("User not authenticated, redirecting to login.")
     #     return super().get(request, *args, **kwargs)
-    @permission_classes([IsAuthenticated]) 
+    @permission_classes([IsAuthenticated])
     def get_queryset(self):
         if self.request.user.is_authenticated:
             print("User in get_queryset:", self.request.user.username, self.request.user.email)
@@ -195,7 +201,7 @@ class BookingListView(ListView):
             # Handle the anonymous user case, possibly by returning an empty queryset
             return Booking.objects.none()
 
-    @permission_classes([IsAuthenticated]) 
+    @permission_classes([IsAuthenticated])
     def render_to_response(self, context, **response_kwargs):
         queryset = self.get_queryset()
         serializer = BookingSerializer(queryset, many=True)
@@ -208,7 +214,6 @@ class BookingListView(ListView):
         user = request.user
         print("User making the booking request:", user.username, user.email)
         # ... rest of your code ...
-
 
 
 @csrf_exempt

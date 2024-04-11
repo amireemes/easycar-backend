@@ -29,7 +29,7 @@ from .filters import CarFilter
 from django.views import View
 from django.views.generic import ListView
 from django.contrib.auth.mixins import LoginRequiredMixin
-
+from rest_framework.generics import ListAPIView
 @require_GET
 def csrf(request):
     token_to_print = get_token(request)
@@ -174,26 +174,16 @@ class CarDetailsView(generics.RetrieveUpdateDestroyAPIView):
             return Response(serializer.data)
         except Car.DoesNotExist:
             raise NotFound('A car with this ID does not exist.')
-class BookingListView(ListView):
-    model = Booking
-    # def get(self, request, *args, **kwargs):
-    #     print("User authenticated:", request.user.is_authenticated)
-    #     if request.user.is_authenticated:
-    #         print("Authenticated user:", request.user)
-    #     else:
-    #         print("User not authenticated, redirecting to login.")
-    #     return super().get(request, *args, **kwargs)
-    @permission_classes([IsAuthenticated]) 
+@permission_classes([IsAuthenticated])
+class BookingListView(ListAPIView):
+    serializer_class = BookingSerializer
+
     def get_queryset(self):
-        if self.request.user.is_authenticated:
-            print("User in get_queryset:", self.request.user.username, self.request.user.email)
-            queryset = Booking.objects.filter(user=self.request.user)
-            print("Booking QuerySet:", queryset)
-            return queryset
+        user = self.request.user
+        if user.is_authenticated:
+            return Booking.objects.filter(user=user)
         else:
-            print("Anonymous user accessed the bookings.")
-            # Handle the anonymous user case, possibly by returning an empty queryset
-            return Booking.objects.none()
+            raise Http404("No Bookings found")
 
     @permission_classes([IsAuthenticated]) 
     def render_to_response(self, context, **response_kwargs):

@@ -1,34 +1,54 @@
-from django.db import IntegrityError
-from django.middleware.csrf import get_token
-from django.utils.dateparse import parse_datetime
-from django.views.decorators.http import require_http_methods, require_GET
-from django_filters.rest_framework import DjangoFilterBackend
-from jupyter_client.jsonutil import parse_date
-from rest_framework import generics, status
-from django.contrib.auth.models import User
-from django.contrib.auth import login, logout, authenticate, update_session_auth_hash
-from django.http import HttpResponseBadRequest, JsonResponse, Http404
-from django.views.decorators.csrf import csrf_exempt, csrf_protect, ensure_csrf_cookie
-from django.contrib.auth.hashers import make_password
 import json
+
+from django.contrib.auth import login, logout, authenticate, update_session_auth_hash
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
+from django.db import IntegrityError
+from django.http import JsonResponse
+from django.middleware.csrf import get_token
+from django.shortcuts import get_object_or_404
+from django.utils.dateparse import parse_datetime
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET
+from django.views.generic import ListView
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import generics, status
 from rest_framework.decorators import api_view, parser_classes, permission_classes
 from rest_framework.exceptions import NotFound
 from rest_framework.filters import OrderingFilter
 from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+
+from .filters import CarFilter
 from .models import Car, Booking
 from .serializers import CarSerializer, BookingSerializer
 from .serializers import PaymentSerializer
-from rest_framework.response import Response
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.filters import OrderingFilter
-from .filters import CarFilter
-from django.views import View
-from django.views.generic import ListView
-from django.contrib.auth.mixins import LoginRequiredMixin
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_booking_details(request, booking_id):
+    print("Booking View entered")
+    # Assumes that you have user authentication in place
+    booking = get_object_or_404(Booking, id=booking_id, user=request.user)
+
+    # Construct the data you want to send back to the frontend
+    data = {
+        'start_datetime': booking.start_datetime.strftime('%Y-%m-%d %H:%M'),
+        'end_datetime': booking.end_datetime.strftime('%Y-%m-%d %H:%M'),
+        'total_price': str(booking.total_price),
+        'car': {
+            'make': booking.car.make,
+            'model': booking.car.model,
+            'details_link': f'/cars/{booking.car.id}/'
+        }
+    }
+    print("Booking Data is:", json.dumps(data))
+    return JsonResponse(data)
+
 from rest_framework.generics import ListAPIView
 @require_GET
 def csrf(request):
@@ -185,7 +205,7 @@ class BookingListView(ListAPIView):
         else:
             raise Http404("No Bookings found")
 
-    @permission_classes([IsAuthenticated]) 
+    @permission_classes([IsAuthenticated])
     def render_to_response(self, context, **response_kwargs):
         queryset = self.get_queryset()
         serializer = BookingSerializer(queryset, many=True)
@@ -198,7 +218,6 @@ class BookingListView(ListAPIView):
         user = request.user
         print("User making the booking request:", user.username, user.email)
         # ... rest of your code ...
-
 
 
 @csrf_exempt

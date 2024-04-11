@@ -21,6 +21,7 @@ urlpatterns = [
     path('bookings/', BookingListView.as_view(), name='booking-list'),
     path('api/userinfo/', get_user_info, name='get_user_info'),
     path('api/change-password/', change_password, name='change_password'),
+    path('booking/<int:booking_id>/', views.get_booking_details, name='booking-details'),
 ]
 
 

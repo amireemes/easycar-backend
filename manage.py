@@ -2,6 +2,7 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
+import signal
 
 
 def main():
@@ -18,5 +19,14 @@ def main():
     execute_from_command_line(sys.argv)
 
 
+def handle_sigint(signum, frame):
+    print("Stopping server...")
+    # Run management command to clear sessions
+    from django.core.management import call_command
+    call_command('clearsessions')
+    sys.exit(0)
+
+
 if __name__ == '__main__':
+    signal.signal(signal.SIGINT, handle_sigint)
     main()

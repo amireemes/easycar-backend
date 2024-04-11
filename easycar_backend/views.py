@@ -29,6 +29,11 @@ from .serializers import PaymentSerializer
 
 
 @api_view(['GET'])
+@login_required
+def check_authentication_status(request):
+    return Response({'authenticated': True}, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_booking_details(request, booking_id):
     print("Booking View entered")

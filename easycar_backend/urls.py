@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.conf import settings
 from django.conf.urls.static import static
 from . import views
-from .views import PaymentView
+from .views import PaymentView, check_authentication_status
 
 from .views import CarListCreateView, CarDetailsView, BookingListView, csrf
 from .views import get_user_info, change_password
@@ -22,6 +22,7 @@ urlpatterns = [
     path('api/userinfo/', get_user_info, name='get_user_info'),
     path('api/change-password/', change_password, name='change_password'),
     path('booking/<int:booking_id>/', views.get_booking_details, name='booking-details'),
+    path('check-authentication/', check_authentication_status, name='check-authentication'),
 ]
 
 

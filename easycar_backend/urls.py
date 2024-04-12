@@ -22,6 +22,8 @@ urlpatterns = [
     path('api/userinfo/', get_user_info, name='get_user_info'),
     path('api/change-password/', change_password, name='change_password'),
     path('booking/<int:booking_id>/', views.get_booking_details, name='booking-details'),
+    path('cars/<int:car_id>/unavailable-times/', views.get_unavailable_times, name='car-unavailable-times'),
+
 ]
 
 

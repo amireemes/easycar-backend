@@ -1,16 +1,18 @@
 import json
+from datetime import datetime
 
 from django.contrib.auth import login, logout, authenticate, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.db import IntegrityError
-from django.http import JsonResponse
+from django.db.models import Q
+from django.http import JsonResponse, Http404
 from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
-from django.views.generic import ListView
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, status
 from rest_framework.decorators import api_view, parser_classes, permission_classes
@@ -29,9 +31,40 @@ from .serializers import PaymentSerializer
 
 
 @api_view(['GET'])
+def search_cars(request):
+    # Extract parameters from request
+    location = request.query_params.get('location')
+    from_date = request.query_params.get('fromDate')
+    from_time = request.query_params.get('fromTime')
+    until_date = request.query_params.get('untilDate')
+    until_time = request.query_params.get('untilTime')
+
+    # Initialize the queryset for all cars
+    queryset = Car.objects.all()
+
+    if location:
+        queryset = queryset.filter(location__icontains=location)
+
+    if from_date and until_date:
+        # Parse string dates into datetime objects
+        from_datetime = timezone.make_aware(datetime.strptime(from_date + " " + from_time, '%Y-%m-%d %H:%M'))
+        until_datetime = timezone.make_aware(datetime.strptime(until_date + " " + until_time, '%Y-%m-%d %H:%M'))
+
+        # Look for bookings that overlap with the given time range
+        overlapping_bookings = Q(bookings__start_datetime__lt=until_datetime, bookings__end_datetime__gt=from_datetime)
+
+        # Exclude cars that have overlapping bookings
+        queryset = queryset.exclude(overlapping_bookings).distinct()
+
+    serializer = CarSerializer(queryset, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
 @login_required
 def check_authentication_status(request):
     return Response({'authenticated': True}, status=status.HTTP_200_OK)
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -54,7 +87,10 @@ def get_booking_details(request, booking_id):
     print("Booking Data is:", json.dumps(data))
     return JsonResponse(data)
 
+
 from rest_framework.generics import ListAPIView
+
+
 @require_GET
 def csrf(request):
     token_to_print = get_token(request)
@@ -132,7 +168,19 @@ class CarListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        # print(queryset.query)  # This will print the SQL query to the console
+
+        from_date_str = self.request.query_params.get('fromDate')
+        to_date_str = self.request.query_params.get('untilDate')
+        from_time_str = self.request.query_params.get('fromTime', '00:00')
+        to_time_str = self.request.query_params.get('untilTime', '23:59')
+
+        if from_date_str and to_date_str:
+            from_datetime = timezone.make_aware(parse_datetime(f"{from_date_str}T{from_time_str}"))
+            to_datetime = timezone.make_aware(parse_datetime(f"{to_date_str}T{to_time_str}"))
+
+            overlapping_bookings = Q(bookings__start_datetime__lt=to_datetime, bookings__end_datetime__gt=from_datetime)
+            queryset = queryset.exclude(overlapping_bookings).distinct()
+
         return queryset
 
 
@@ -199,6 +247,8 @@ class CarDetailsView(generics.RetrieveUpdateDestroyAPIView):
             return Response(serializer.data)
         except Car.DoesNotExist:
             raise NotFound('A car with this ID does not exist.')
+
+
 @permission_classes([IsAuthenticated])
 class BookingListView(ListAPIView):
     serializer_class = BookingSerializer

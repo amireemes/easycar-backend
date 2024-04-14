@@ -32,6 +32,28 @@ from django.utils.dateparse import parse_date
 from django.utils import timezone
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_unavailable_dates(request, car_id):
+    # Assuming car_id is passed as URL parameter
+
+    # Find bookings for the given car
+    bookings = Booking.objects.filter(car_id=car_id)
+
+    # Generate a set of dates that are unavailable
+    unavailable_dates = set()
+    for booking in bookings:
+        start_date = booking.start_datetime.date()
+        end_date = booking.end_datetime.date()
+        delta = end_date - start_date
+        for i in range(delta.days + 1):
+            day = start_date + timedelta(days=i)
+            unavailable_dates.add(day)
+
+    # Format the dates into strings and sort them
+    unavailable_dates = sorted(str(date) for date in unavailable_dates)
+    
+    return JsonResponse({"unavailable_dates": unavailable_dates})
 
 @api_view(['GET'])
 def search_cars(request):
@@ -257,25 +279,27 @@ def create_booking(request):
 
 @api_view(['POST'])
 @parser_classes((MultiPartParser, FormParser))
-@permission_classes([IsAuthenticated])  # Ensure that the user is authenticated
+@permission_classes([IsAuthenticated])
 def car_create_view(request, format=None):
     print("Car create view entered")
-    license_plate = request.data.get('license_plate')
-    vin = request.data.get('vin')
+    print("Request data:", request.data)  # Debugging line to print request data
 
-    # Check for existing cars with the same license plate or VIN
-    if Car.objects.filter(license_plate=license_plate).exists():
-        return JsonResponse({'license_plate': 'A car with this license plate already exists.'}, status=400)
-    if Car.objects.filter(vin=vin).exists():
-        return JsonResponse({'vin': 'A car with this VIN number already exists.'}, status=400)
-    serializer = CarSerializer(data=request.data)
+    # Remove the 'owner_id' from request.data as it's not expected by the serializer
+    # Ensure the data is mutable
+    data = request.data.copy()
+    data.pop('owner_id', None)  # Remove owner_id from the data
+
+    # Initialize the serializer with the modified data
+    serializer = CarSerializer(data=data)
+    
+    # Check if the serializer is valid
     if serializer.is_valid():
+        # Pass the owner explicitly to the save method
         serializer.save(owner=request.user)
-        owner = request.user
-        print("serializer is valid")
-        print("Owner is:" + str(owner))
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        print("Serializer errors:", serializer.errors)  # Debugging line to print errors
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

@@ -17,8 +17,8 @@ class PaymentSerializer(serializers.Serializer):
 class CarSerializer(serializers.ModelSerializer):
     class Meta:
         model = Car
-        fields = '__all__'
-        # exclude = ('owner',)
+        # fields = '__all__'
+        exclude = ('owner',)
 
     def create(self, validated_data):
         print("Validated Data: ")

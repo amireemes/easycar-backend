@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from django.utils import timezone
 
 from django.contrib.auth import login, logout, authenticate, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
@@ -30,7 +31,6 @@ from .serializers import CarSerializer, BookingSerializer
 from .serializers import PaymentSerializer
 from django.utils.dateparse import parse_date
 from django.utils import timezone
-
 
 
 @api_view(['GET'])
@@ -97,6 +97,8 @@ def get_unavailable_times(request, car_id):
 
     
     return JsonResponse({"unavailable_times": unavailable_times})
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_booking_details(request, booking_id):
@@ -260,6 +262,13 @@ def create_booking(request):
 @permission_classes([IsAuthenticated])  # Ensure that the user is authenticated
 def car_create_view(request, format=None):
     print("Car create view entered")
+    print("Request data:", request.data)  # Debugging line to print request data
+
+    # Remove the 'owner_id' from request.data as it's not expected by the serializer
+    # Ensure the data is mutable
+    data = request.data.copy()
+    data.pop('owner_id', None)  # Remove owner_id from the data
+
     license_plate = request.data.get('license_plate')
     vin = request.data.get('vin')
 
@@ -268,15 +277,18 @@ def car_create_view(request, format=None):
         return JsonResponse({'license_plate': 'A car with this license plate already exists.'}, status=400)
     if Car.objects.filter(vin=vin).exists():
         return JsonResponse({'vin': 'A car with this VIN number already exists.'}, status=400)
-    serializer = CarSerializer(data=request.data)
-    if serializer.is_valid():
-        serializer.save(owner=request.user)
-        owner = request.user
-        print("serializer is valid")
-        print("Owner is:" + str(owner))
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    # Initialize the serializer with the modified data
+    serializer = CarSerializer(data=data)
+
+    # Check if the serializer is valid
+    if serializer.is_valid():
+        # Pass the owner explicitly to the save method
+        serializer.save(owner=request.user)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    else:
+        print("Serializer errors:", serializer.errors)  # Debugging line to print errors
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_booked_times(request, car_id):

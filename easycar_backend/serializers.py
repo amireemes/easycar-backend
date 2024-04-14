@@ -17,8 +17,8 @@ class PaymentSerializer(serializers.Serializer):
 class CarSerializer(serializers.ModelSerializer):
     class Meta:
         model = Car
-        fields = '__all__'
-        # exclude = ('owner',)
+        # fields = '__all__'
+        exclude = ('owner',)
 
     def create(self, validated_data):
         print("Validated Data: ")
@@ -34,6 +34,8 @@ class CarSerializer(serializers.ModelSerializer):
         car = Car.objects.create(**validated_data, owner=owner_popped)
         print("Car created: ", car)
         return car
+
+
 class BookingSerializer(serializers.ModelSerializer):
     car_details = CarSerializer(source='car', read_only=True)  # Nested Serializer for car details
 

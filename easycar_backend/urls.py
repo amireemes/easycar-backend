@@ -24,6 +24,8 @@ urlpatterns = [
     path('booking/<int:booking_id>/', views.get_booking_details, name='booking-details'),
     path('check-authentication/', check_authentication_status, name='check-authentication'),
     path('search-cars/', search_cars, name='search_cars'),
+    path('cars/<int:car_id>/unavailable-times/', views.get_unavailable_times, name='car-unavailable-times'),
+
 ]
 
 

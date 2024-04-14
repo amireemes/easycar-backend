@@ -23,11 +23,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
-
+from datetime import timedelta, datetime
 from .filters import CarFilter
 from .models import Car, Booking
 from .serializers import CarSerializer, BookingSerializer
 from .serializers import PaymentSerializer
+from django.utils.dateparse import parse_date
+from django.utils import timezone
+
 
 
 @api_view(['GET'])
@@ -66,6 +69,34 @@ def check_authentication_status(request):
     return Response({'authenticated': True}, status=status.HTTP_200_OK)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_unavailable_times(request, car_id):
+    # Get the date from the query parameters
+    date_str = request.query_params.get('date', None)
+    if not date_str:
+        return JsonResponse({"error": "No date provided"}, status=400)
+    
+    # Parse the date string into a datetime object
+    booking_date = parse_date(date_str)
+    if not booking_date:
+        return JsonResponse({"error": "Invalid date format"}, status=400)
+    
+    # Find bookings for the given car and date
+    start_of_day = datetime.combine(booking_date, datetime.min.time())
+    end_of_day = start_of_day + timedelta(days=1)
+    bookings = Booking.objects.filter(
+        car_id=car_id,
+        start_datetime__gte=start_of_day,
+        end_datetime__lt=end_of_day
+    )
+    
+    # Generate a list of times that are unavailable
+    # In your get_unavailable_times view
+    unavailable_times = [booking.start_datetime.strftime('%H:%M') for booking in bookings]
+
+    
+    return JsonResponse({"unavailable_times": unavailable_times})
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_booking_details(request, booking_id):
@@ -187,17 +218,30 @@ class CarListCreateView(generics.ListCreateAPIView):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_booking(request):
-    print(f"CSRF Cookie from the request: {request.META.get('CSRF_COOKIE')}")
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
             user = request.user
-            print(user)
             car_id = data['car_id']
             start_datetime = parse_datetime(data['start_datetime'])
             end_datetime = parse_datetime(data['end_datetime'])
             booking_location = data.get('booking_location', '')  # Optional, based on your model
 
+            # Check if the car is already booked for the given time frame
+            overlapping_bookings = Booking.objects.filter(
+                car_id=car_id,
+                end_datetime__gte=start_datetime,
+                start_datetime__lte=end_datetime
+            )
+            
+            if overlapping_bookings.exists():
+                # Car is not available for booking as it's already booked for the time frame
+                return JsonResponse({
+                    "success": False,
+                    "error": "The car is already booked for the selected time frame."
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # If no overlapping bookings, create the new booking
             booking = Booking.objects.create(
                 user=user,
                 car_id=car_id,
@@ -205,12 +249,11 @@ def create_booking(request):
                 end_datetime=end_datetime,
                 booking_location=booking_location,
             )
-            return JsonResponse({"success": True, "booking_id": booking.id}, status=201)
+            
+            return JsonResponse({"success": True, "booking_id": booking.id}, status=status.HTTP_201_CREATED)
+        
         except Exception as e:
-            return JsonResponse({"success": False, "error": str(e)}, status=400)
-    else:
-        return JsonResponse({"success": False, "error": "Only POST requests are allowed."}, status=405)
-
+            return JsonResponse({"success": False, "error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])
 @parser_classes((MultiPartParser, FormParser))
@@ -234,6 +277,16 @@ def car_create_view(request, format=None):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_booked_times(request, car_id):
+    # Get all bookings for the car that are current or future
+    bookings = Booking.objects.filter(
+        car_id=car_id,
+        end_datetime__gte=datetime.now()
+    )
+    booked_times = bookings.values_list('start_datetime', 'end_datetime')
+    return JsonResponse({"booked_times": list(booked_times)})
 
 class CarDetailsView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Car.objects.all()
@@ -256,9 +309,28 @@ class BookingListView(ListAPIView):
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated:
-            return Booking.objects.filter(user=user)
+            # Get all bookings for the current user
+            return Booking.objects.filter(user=user).order_by('-start_datetime')
         else:
             raise Http404("No Bookings found")
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        now = timezone.now()
+
+        # Separate current/future bookings from past bookings
+        current_bookings = queryset.filter(end_datetime__gte=now)
+        past_bookings = queryset.filter(end_datetime__lt=now)
+
+        # Serialize the data
+        current_bookings_serializer = self.get_serializer(current_bookings, many=True)
+        past_bookings_serializer = self.get_serializer(past_bookings, many=True)
+
+        # Return both current and past bookings
+        return Response({
+            'current_bookings': current_bookings_serializer.data,
+            'past_bookings': past_bookings_serializer.data
+        })
 
     @permission_classes([IsAuthenticated])
     def render_to_response(self, context, **response_kwargs):
